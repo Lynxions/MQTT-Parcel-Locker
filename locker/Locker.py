@@ -1,6 +1,6 @@
 import paho.mqtt.client as mqtt
 import json
-from Cell import Cell, CELL_STATUS
+from .Cell import Cell, CELL_STATUS
 from enum import Enum
 
 class REQUEST(Enum):
