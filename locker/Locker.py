@@ -31,35 +31,59 @@ class Locker(mqtt.Client):
     def add_cell(self, cell_id: int):
         cell = Cell(cell_id)
         self.cells[cell_id] = cell
+        print(f"Added cell {cell_id} with status {cell.status}")
 
     def remove_cell(self, cell: Cell):
         del self.cells[cell.id]
 
     def get_cell(self, id) -> Cell:
-        return self.cells[id]
-    
+        if id in self.cells:
+            return self.cells[id]
+        else:
+            raise KeyError(f"Cell with id {id} not found")
+        
     def get_empty_cells(self):
-        return [cell for cell in self.cells.values() if not cell.occupied]
-    
-    def get_occupied_cells(self):
-        return [cell for cell in self.cells.values() if cell.occupied]
-    
-    def update_status(self, cell_id, status: CELL_STATUS):
-        self.cells[cell_id].status = status
-        # self.publish(f"locker/{self.id}/cell/{cell_id}", f'"status": "{status.value}"', 0)
+        return [cell for cell in self.cells.values() if cell.status == CELL_STATUS.EMPTY]
 
-    def update_status_door(self, cell_id, status: CELL_STATUS):
-        self.cells[cell_id].status_door = status
+    def get_occupied_cells(self):
+        return [cell for cell in self.cells.values() if cell.status == CELL_STATUS.OCCUPIED]
+
+    def update_status(self, cell_id, status: CELL_STATUS):
+        if cell_id in self.cells:
+            self.cells[cell_id].status = status
+            self.publish(f"locker/{self.id}/cell/{cell_id}", f'"status": "{status.value}"', 0)
+        else:
+            print(f"Cell with id {cell_id} does not exist")
+
+    def update_status_door(self, cell_id, status):
+        if cell_id in self.cells:
+            self.cells[cell_id].status_door = status
+        else:
+            print(f"Cell with id {cell_id} does not exist")
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
         print(f"Connected with result code {reason_code}")
-        # self.publish(f"locker/{self.id}/cell/2", "1")
+        self.publish(f"locker/{self.id}/cell/2", "1")
 
     def on_message(self, client, userdata, msg):
         try:
             topic = msg.topic
-            body = json.loads(msg.payload.decode("utf-8"))
-            cell_id = topic.split("/")[-1]
+            # Attempt to decode JSON, handle non-dict bodies
+            try:
+                body = json.loads(msg.payload.decode("utf-8"))
+            except json.JSONDecodeError as e:
+                print(f"Failed to decode JSON: {e}. Raw message: {msg.payload}")
+                return
+
+            # Check if the body is a dictionary before proceeding
+            if not isinstance(body, dict):
+                print(f"Unexpected message format: {body}. Expected a dictionary.")
+                return
+            
+            # Extract the cell_id from the topic
+            cell_id = int(topic.split("/")[-1])
+            print(f"Message received for cell {cell_id}: {body}")
+   
             # Format body to json
             if "request" in body:
                 request = body["request"]
@@ -76,11 +100,15 @@ class Locker(mqtt.Client):
                 elif update == UPDATE.CLOSING.value:
                     self.update_status_door(cell_id, UPDATE.CLOSING)
             else:
-                request = "None"
+                print(f"Unknown request for cell {cell_id}")
 
-            print(f"Received message: {cell_id} {request}")
-        except json.JSONDecodeError as e:
-            print(f"Failed to decode JSON: {e}")
+            # print(f"Received message: {cell_id} {request}")
+        except KeyError as e:
+            print(f"KeyError: {e}. Available cells: {list(self.cells.keys())}")
+        except ValueError as e:
+            print(f"ValueError: {e}")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
 
     def on_subscribe(self, client, userdata, mid, reason_code, properties):
         print(f"Locker subscribed: {self.id}")
@@ -93,20 +121,26 @@ class Locker(mqtt.Client):
         self.subscribe("rpi/locker/#")
 
     def open_cell(self, cell_id):
-        cell = self.get_cell(int(cell_id))
-        self.publish(f"rpi/locker/{cell_id}", '{"cell":"on"}', 0)
-        if cell.status == CELL_STATUS.OCCUPIED:
-            self.update_status(int(cell_id), False) #False?
-        else:
-            print("Cell is empty")
-    
+        try:
+            cell = self.get_cell(cell_id)
+            self.publish(f"rpi/locker/{cell_id}", '{"cell":"on"}', 0)
+            if cell.status == CELL_STATUS.OCCUPIED:
+                self.update_status(cell_id, CELL_STATUS.EMPTY)  # Updating to empty if occupied
+            else:
+                print(f"Cell {cell_id} is already empty")
+        except KeyError as e:
+            print(e)
+
     def close_cell(self, cell_id):
-        cell = self.get_cell(int(cell_id))
-        self.publish(f"rpi/locker/{cell_id}", '{"cell":"off"}', 0)
-        if cell.status == CELL_STATUS.OCCUPIED:
-            print("Cell is occupied")
-        else:
-            self.update_status(int(cell_id), True)
+        try:
+            cell = self.get_cell(cell_id)
+            self.publish(f"rpi/locker/{cell_id}", '{"cell":"off"}', 0)
+            if cell.status == CELL_STATUS.OCCUPIED:
+                print(f"Cell {cell_id} is occupied")
+            else:
+                self.update_status(cell_id, CELL_STATUS.OCCUPIED)  # Updating to occupied if empty
+        except KeyError as e:
+            print(e)
     
     def print_QR_code(self, order_id, OTP):
         # TODO: Implement this function
