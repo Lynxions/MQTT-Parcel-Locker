@@ -20,13 +20,14 @@ class Locker(mqtt.Client):
     host: str
     port: int
 
-    def __init__(self, id, host, port):
+    def __init__(self, id, host, port, on_generate_qr):
         super().__init__(mqtt.CallbackAPIVersion.VERSION2, transport="websockets")
         self.id = id
         self.host = host
         self.port = port
         self.cells = {}
         self.tls_set()
+        self.on_gernerate_qr = on_generate_qr
 
     def add_cell(self, cell_id: int):
         cell = Cell(cell_id)
@@ -63,7 +64,7 @@ class Locker(mqtt.Client):
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
         print(f"Connected with result code {reason_code}")
-        self.publish(f"locker/{self.id}/cell/2", "1")
+        #self.publish(f"locker/{self.id}/cell/2", "1")
 
     def on_message(self, client, userdata, msg):
         try:
@@ -90,7 +91,7 @@ class Locker(mqtt.Client):
                 if request == REQUEST.OPEN.value:
                     self.open_cell(cell_id)
                 elif request == REQUEST.PRINT_QR.value:
-                    self.print_QR_code(body["order_id"], body["OTP"])
+                    self.on_gernerate_qr(body["order_id"], body["OTP"])
                 elif request == REQUEST.CLOSE.value:
                     self.close_cell(cell_id)
             elif "update" in body:
@@ -118,6 +119,7 @@ class Locker(mqtt.Client):
             raise Exception("Host and port must be set")
         super().connect(self.host, self.port, keepalive)
         self.subscribe(f"locker/{self.id}/cell/#")
+        self.subscribe(f"locker/{self.id}/#")
         self.subscribe("rpi/locker/#")
 
     def open_cell(self, cell_id):
@@ -141,7 +143,3 @@ class Locker(mqtt.Client):
                 self.update_status(cell_id, CELL_STATUS.OCCUPIED)  # Updating to occupied if empty
         except KeyError as e:
             print(e)
-    
-    def print_QR_code(self, order_id, OTP):
-        # TODO: Implement this function
-        pass
