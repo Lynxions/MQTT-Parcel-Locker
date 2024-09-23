@@ -2,6 +2,7 @@ import paho.mqtt.client as mqtt
 import json
 from .Cell import Cell, CELL_STATUS
 from enum import Enum
+import http.client
 
 class REQUEST(Enum):
     OPEN = "open"
@@ -24,7 +25,7 @@ class Locker(mqtt.Client):
         super().__init__(mqtt.CallbackAPIVersion.VERSION2, transport="websockets")
         self.id = id
         self.host = host
-        self.port = port
+        self.port = int(port)
         self.cells = {}
         self.tls_set()
         self.on_gernerate_qr = on_generate_qr
@@ -33,6 +34,26 @@ class Locker(mqtt.Client):
         cell = Cell(cell_id)
         self.cells[cell_id] = cell
         print(f"Added cell {cell_id} with status {cell.status}")
+
+    def connect_to_http(self, host, port, is_https=False):
+        # GET request to http_host
+        
+        assert self.id is not None
+        assert port is not None
+        assert host is not None
+
+        if is_https:
+            conn = http.client.HTTPSConnection(host, port)
+        else:
+            conn = http.client.HTTPConnection(host, port)
+        
+        conn.request("GET", f"/api/v1/locker/{self.id}/cells")
+        res = conn.getresponse()
+        data = res.read().decode("utf-8")
+        for cell in json.loads(data):
+            self.add_cell(cell["cell_id"])
+            # self.update_status(cell["cell_id"], CELL_STATUS(cell["occupied"]))
+        
 
     def remove_cell(self, cell: Cell):
         del self.cells[cell.id]
@@ -118,7 +139,7 @@ class Locker(mqtt.Client):
         if self.host is None or self.port is None:
             raise Exception("Host and port must be set")
         super().connect(self.host, self.port, keepalive)
-        self.subscribe(f"locker/{self.id}/cell/#")
+        # self.subscribe(f"locker/{self.id}/cell/#")
         self.subscribe(f"locker/{self.id}/#")
         self.subscribe("rpi/locker/#")
 
