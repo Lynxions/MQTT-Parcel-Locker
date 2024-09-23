@@ -10,7 +10,7 @@ class CELL_DOOR_STATUS(Enum):
     CLOSING = "closing"
 
 class Cell:
-    id: int
+    id: str
     status: CELL_STATUS
     status_door: CELL_DOOR_STATUS
 
