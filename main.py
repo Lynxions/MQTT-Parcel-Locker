@@ -14,7 +14,7 @@ MQTT_PORT = int(config("MQTT_PORT"))
 HTTP_HOST = config("HTTP_HOST")
 HTTP_PORT = int(config("HTTP_PORT"))
 IS_HTTPS = config("IS_HTTPS")
-
+ID = config("ID")
 if IS_HTTPS == "True":
     IS_HTTPS = True
 else:
