@@ -1,4 +1,8 @@
+import paho.mqtt.client as mqtt
 from enum import Enum
+
+MQTT_BROKER = "192.168.54.87"
+MQTT_PORT = 1883
 
 class CELL_STATUS(Enum):
     OPENING = "opening"
@@ -10,7 +14,7 @@ class CELL_DOOR_STATUS(Enum):
     CLOSING = "closing"
 
 class Cell:
-    id: int
+    id: str
     status: CELL_STATUS
     status_door: CELL_DOOR_STATUS
 
@@ -18,3 +22,11 @@ class Cell:
         self.id = id
         self.status = CELL_STATUS.EMPTY
         self.status_door = CELL_DOOR_STATUS.OPENING
+        
+    def connect_broker(self, cells_mapping_id):
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        client.loop_start()
+        client.publish(f"rpi/locker/{cells_mapping_id}", "on", 0)
+        client.loop_start()
+        client.disconnect()
