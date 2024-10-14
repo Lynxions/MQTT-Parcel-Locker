@@ -2,6 +2,8 @@ import paho.mqtt.client as mqtt
 import json
 from .Cell import Cell, CELL_STATUS
 from enum import Enum
+from typing import Dict
+import http.client
 
 class REQUEST(Enum):
     OPEN = "open"
@@ -15,8 +17,9 @@ class UPDATE(Enum):
     EMPTY = "empty"
 
 class Locker(mqtt.Client):
-    id: int
+    id: str
     cells: dict
+    cells_mapping: dict
     host: str
     port: int
 
@@ -24,15 +27,37 @@ class Locker(mqtt.Client):
         super().__init__(mqtt.CallbackAPIVersion.VERSION2, transport="websockets")
         self.id = id
         self.host = host
-        self.port = port
+        self.port = int(port)
         self.cells = {}
+        self.cells_mapping = {}
         self.tls_set()
         self.on_gernerate_qr = on_generate_qr
 
-    def add_cell(self, cell_id: int):
+    def add_cell(self, cell_id):
         cell = Cell(cell_id)
+        self.cells_mapping[cell_id] = len(self.cells_mapping) + 1
         self.cells[cell_id] = cell
         print(f"Added cell {cell_id} with status {cell.status}")
+
+    def connect_to_http(self, host, port, is_https=False):
+        # GET request to http_host
+        
+        assert self.id is not None
+        assert port is not None
+        assert host is not None
+
+        if is_https:
+            conn = http.client.HTTPSConnection(host, port)
+        else:
+            conn = http.client.HTTPConnection(host, port)
+        
+        conn.request("GET", f"/api/v1/locker/{self.id}/cells")
+        res = conn.getresponse()
+        data = res.read().decode("utf-8")
+        for cell in json.loads(data):
+            self.add_cell(cell["cell_id"])
+            # self.update_status(cell["cell_id"], CELL_STATUS(cell["occupied"]))
+        
 
     def remove_cell(self, cell: Cell):
         del self.cells[cell.id]
@@ -40,6 +65,12 @@ class Locker(mqtt.Client):
     def get_cell(self, id) -> Cell:
         if id in self.cells:
             return self.cells[id]
+        else:
+            raise KeyError(f"Cell with id {id} not found")
+            
+    def get_cell_mapping(self, id):
+        if id in self.cells_mapping:
+            return self.cells_mapping[id]
         else:
             raise KeyError(f"Cell with id {id} not found")
         
@@ -82,7 +113,7 @@ class Locker(mqtt.Client):
                 return
             
             # Extract the cell_id from the topic
-            cell_id = int(topic.split("/")[-1])
+            cell_id = topic.split("/")[-1]
             print(f"Message received for cell {cell_id}: {body}")
    
             # Format body to json
@@ -101,7 +132,7 @@ class Locker(mqtt.Client):
                 elif update == UPDATE.CLOSING.value:
                     self.update_status_door(cell_id, UPDATE.CLOSING)
             else:
-                print(f"Unknown request for cell {cell_id}")
+                print(f"Unknown request for cell {cell_id}, request: {body}")
 
             # print(f"Received message: {cell_id} {request}")
         except KeyError as e:
@@ -118,15 +149,16 @@ class Locker(mqtt.Client):
         if self.host is None or self.port is None:
             raise Exception("Host and port must be set")
         super().connect(self.host, self.port, keepalive)
-        self.subscribe(f"locker/{self.id}/cell/#")
+        # self.subscribe(f"locker/{self.id}/cell/#")
         self.subscribe(f"locker/{self.id}/#")
-        self.subscribe("rpi/locker/#")
+        # self.subscribe("rpi/locker/#")
 
     def open_cell(self, cell_id):
         try:
             cell = self.get_cell(cell_id)
-            self.publish(f"rpi/locker/{cell_id}", '{"cell":"on"}', 0)
-            if cell.status == CELL_STATUS.OCCUPIED:
+            cell.connect_broker(self.get_cell_mapping(cell_id))
+            #self.publish(f"rpi/locker/{cell_mapping_id}", '{"cell":"on"}', 0)
+            if cell.status == CELL_STATUS.OCCUPIED: 
                 self.update_status(cell_id, CELL_STATUS.EMPTY)  # Updating to empty if occupied
             else:
                 print(f"Cell {cell_id} is already empty")
