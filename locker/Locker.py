@@ -27,7 +27,7 @@ class Locker(mqtt.Client):
         self.host = host
         self.port = int(port)
         self.cells = {}
-        self.tls_set()
+        self.tls_set() # WSS
         self.on_gernerate_qr = on_generate_qr
 
     def add_cell(self, cell_id: int):
@@ -54,7 +54,6 @@ class Locker(mqtt.Client):
             self.add_cell(cell["cell_id"])
             # self.update_status(cell["cell_id"], CELL_STATUS(cell["occupied"]))
         
-
     def remove_cell(self, cell: Cell):
         del self.cells[cell.id]
 

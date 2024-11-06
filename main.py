@@ -21,7 +21,7 @@ else:
     IS_HTTPS = False
 
 locker = Locker(1, MQTT_HOST, MQTT_PORT, app.generate_qr_code)
-
+print(MQTT_HOST, MQTT_PORT)
 locker.connect(60)
 locker.connect_to_http(HTTP_HOST, HTTP_PORT, IS_HTTPS)
 # for i in range(1, 11):
