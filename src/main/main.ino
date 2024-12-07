@@ -18,7 +18,7 @@ Ticker lockOffTickers[4];
 WiFiClient httpClient;
 PubSubClient client(httpClient);
 
-const int lockPins[4] = {5, 14, 4, 12}; // ESP32 pins GPIO5 (D1), GPIO14 (D5), GPIO4 (D2), GPIO12 (D6)
+const int lockPins[4] = {5, 0, 14, 13}; // ESP32 pins GPIO5 (D1), GPIO0 (D3), GPIO14 (D5), GPIO13 (D7)
 const char* lockTopics[4] = {"rpi/locker1", "rpi/locker2", "rpi/locker3", "rpi/locker4"};
 
 bool lockStates[4] = {false, false, false, false};
