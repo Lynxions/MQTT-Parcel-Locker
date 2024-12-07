@@ -2,20 +2,13 @@
 #include <PubSubClient.h>
 #include <Ticker.h>
 #include "secrets.h"
-#include <ESP8266HTTPUpdate.h>
+#include "ESP8266httpUpdate.h"
 #include <time.h>  // For time synchronization
-
-// const char* ssid = "IU STAFF";
-// const char* password = "8888888888";
 
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 const char* mqtt_server = MQTT_SERVER;
 const char* firmware_url = FIRMWARE_URL;
-
-//const char* mqtt_server = "10.238.55.140"; //IU
-
-//const char* mqtt_server = "10.8.99.120"; //IU STAFF
 
 #define ledPin 2
 
@@ -25,7 +18,7 @@ Ticker lockOffTickers[4];
 WiFiClient httpClient;
 PubSubClient client(httpClient);
 
-const int lockPins[4] = {5, 14, 4, 12}; // ESP32 pins GPIO5 (D1), GPIO14 (D5), GPIO4 (D2), GPIO12 (D6)
+const int lockPins[4] = {5, 0, 14, 13}; // ESP32 pins GPIO5 (D1), GPIO0 (D3), GPIO14 (D5), GPIO13 (D7)
 const char* lockTopics[4] = {"rpi/locker1", "rpi/locker2", "rpi/locker3", "rpi/locker4"};
 
 bool lockStates[4] = {false, false, false, false};
@@ -99,6 +92,9 @@ void connect_mqttServer(){
             // Subscribe to necessary topics
             client.subscribe(commandTopic.c_str());
             client.subscribe(firmwareTopic.c_str());
+            for (int i = 0; i < 4; i++) {
+              client.subscribe(lockTopics[i]);
+            };
         } else {
             Serial.print("Failed to connect to MQTT, rc=");
             Serial.print(client.state());
@@ -210,7 +206,7 @@ void topicPublishOn() {
         if (controlLocks[i]) {
             client.publish(lockTopics[i], "on", 0);
             controlLocks[i] = false;
-            lockOffTickers[i].once(5, std::bind(publishLockOff, i));
+            lockOffTickers[i].once(interval/1000, std::bind(publishLockOff, i));
         }
     }
 }
