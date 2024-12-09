@@ -22,13 +22,14 @@ class Locker(mqtt.Client):
     port: int
     cells_mapping: dict
 
-    def __init__(self, id, host, port, on_generate_qr):
+    def __init__(self, id, host, port, on_generate_qr, display_sucess):
         super().__init__(mqtt.CallbackAPIVersion.VERSION2)
         self.id = id
         self.host = host
         self.port = int(port)
         self.cells = {}
         self.on_gernerate_qr = on_generate_qr
+        self.display_sucess = display_sucess
         self.cells_mapping = {}
 
     def add_cell(self, cell_id: str):
@@ -113,6 +114,7 @@ class Locker(mqtt.Client):
                 request = body["request"]
                 if request == REQUEST.OPEN.value:
                     self.open_cell(cell_id)
+                    self.display_sucess(self.cells_mapping[cell_id])
                 elif request == REQUEST.PRINT_QR.value:
                     self.on_gernerate_qr(body["order_id"], body["OTP"])
                 elif request == REQUEST.CLOSE.value:
