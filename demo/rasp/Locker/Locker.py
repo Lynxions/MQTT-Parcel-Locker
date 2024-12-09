@@ -23,12 +23,11 @@ class Locker(mqtt.Client):
     cells_mapping: dict
 
     def __init__(self, id, host, port, on_generate_qr):
-        super().__init__(mqtt.CallbackAPIVersion.VERSION2, transport="websockets")
+        super().__init__(mqtt.CallbackAPIVersion.VERSION2)
         self.id = id
         self.host = host
         self.port = int(port)
         self.cells = {}
-        self.tls_set() # WSS
         self.on_gernerate_qr = on_generate_qr
         self.cells_mapping = {}
 
