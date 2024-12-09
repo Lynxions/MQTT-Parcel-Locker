@@ -1,4 +1,5 @@
 #include <ESP8266WiFi.h>
+#include <ArduinoJson.h>
 #include <PubSubClient.h>
 #include <Ticker.h>
 #include "secrets.h"
@@ -159,13 +160,23 @@ void callback(char* topic, byte* message, unsigned int length) {
     for (unsigned int i = 0; i < length; i++) {
         messageTemp += (char)message[i];
     }
+    StaticJsonDocument<256> jsonDoc;
+    DeserializationError error = deserializeJson(jsonDoc, messageTemp);
+
+    if (error) {
+        Serial.println("Failed to parse command JSON.");
+        return;
+    }
+
+    String msg = jsonDoc["cell"];
+
 
     for (int i = 0; i < 4; i++) {
         if (String(topic) == lockTopics[i]) {
-            if (messageTemp == String("{\"cell\":\"on\"}") && !lockStates[i]) {
+            if (msg == "on" && !lockStates[i]) {
                 handleLock(i, true);
             }
-            if (messageTemp == String("{\"cell\":\"off\"}")) {
+            if (msg == "off") {
                 handleLock(i, false);
             }
         }
@@ -198,13 +209,13 @@ void setup(){
 }
 
 void publishLockOff(int lockIndex) {
-    client.publish(lockTopics[lockIndex], "off", 0);
+    client.publish(lockTopics[lockIndex], "{\"cell\":\"off\"}" , 0);
 }
 
 void topicPublishOn() {
     for (int i = 0; i < 4; i++) {
         if (controlLocks[i]) {
-            client.publish(lockTopics[i], "on" , 0);
+            client.publish(lockTopics[i], "{\"cell\":\"on\"}" , 0);
             controlLocks[i] = false;
             lockOffTickers[i].once(interval/1000, std::bind(publishLockOff, i));
         }
